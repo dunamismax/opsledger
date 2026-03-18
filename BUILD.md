@@ -1,228 +1,408 @@
 # BUILD
 
-This file is the build contract for OpsLedger. Agents should use it to stay aligned on scope, milestones, and progress tracking.
+This is the primary operational handoff document for OpsLedger.
 
-## Project Summary
+This file is a living document. Every future agent and developer who changes behavior, tooling, architecture, workflows, docs, or project status is responsible for keeping `BUILD.md` accurate, current, and up to date before handing work off.
 
-- Name: OpsLedger
-- Category: self-hosted operations workspace
-- Primary users: small engineering teams, operators, homelabbers, internal platform owners
-- Core promise: keep operational memory durable, reviewable, and actionable
-- Current status: initial MVP foundation implemented
+Last reviewed and re-verified: 2026-03-18
 
-## Product Vision
+## Project baseline
 
-OpsLedger should sit in the space between scattered docs and heavyweight incident-management platforms. It should help small teams answer:
+### What the application currently does
 
-- What services do we run?
-- Who owns them?
-- What is the correct runbook?
-- When did we last test recovery?
-- What happened during the last incident?
-- Which follow-ups are still open?
+OpsLedger is a self-hosted operations workspace for small teams. The current build supports:
 
-The product should feel calmer and more durable than chat-driven incident response, with explicit support for review cycles and operational memory.
+- a dashboard with service, incident, runbook, follow-up, and drill summary metrics
+- a service catalog with owners, environments, dependencies, and external links
+- runbook creation and stale-review highlighting
+- incident creation plus timeline entry append
+- postmortem creation plus follow-up status advancement
+- drill creation with evidence metadata
 
-## Goals
+### Current implemented state
 
-- Track services, dependencies, owners, links, and environments.
-- Store runbooks with review dates and stale warnings.
-- Capture incident timelines, notes, and postmortems.
-- Track restore drills and tabletop exercises over time.
-- Provide a simple self-hosted setup for small teams.
+The app is no longer planning-only. It is a working pnpm monorepo with:
 
-## Non-Goals
+- a React 19 + Vite SPA in `apps/web`
+- a Hono API in `apps/api`
+- shared Zod contracts in `packages/contracts`
+- shared domain helpers in `packages/core`
+- shared env parsing in `packages/config`
+- shared test fixtures in `packages/testing`
+- a Prisma/PostgreSQL package scaffold in `packages/db`
 
-- Not a full developer portal platform.
-- Not a replacement for full observability tooling.
-- Not a chat-first incident commander product.
-- Not a generic wiki with weak structure.
+Important current reality:
 
-## Product Scope
+- Runtime persistence is the JSON file at `apps/api/data/opsledger.json`.
+- Prisma and PostgreSQL are scaffolded but are not used by the running API.
+- There is no auth or session layer yet.
+- The SPA reads one bootstrap payload from `/api/bootstrap` and then re-fetches that payload after mutations.
+- The API currently exposes create-oriented endpoints only; there are no general edit or delete flows.
 
-## MVP
+### Major components, modules, and entry points
 
-- auth and team/workspace basics
-- service catalog with owners and metadata
-- dependency links between services
-- runbooks with review cadence and version history
-- incident records with timeline entries and outcomes
-- postmortem records with follow-up tasks
-- restore drill records with evidence and results
-- stale content warnings for overdue runbook reviews
+- `package.json`
+  Source of truth for workspace scripts.
+- `apps/api/src/index.ts`
+  API entry point. Parses env, creates `FileOpsLedgerStore`, starts Hono server.
+- `apps/api/src/app.ts`
+  HTTP routes. Current routes are `GET /health`, `GET /api/bootstrap`, and POST endpoints for services, runbooks, incidents, timeline entries, postmortems, follow-up status, and drills.
+- `apps/api/src/store.ts`
+  Current persistence implementation. Reads and rewrites the entire JSON snapshot on every write.
+- `apps/api/data/opsledger.json`
+  Active dev/demo data and current runtime source of truth.
+- `apps/web/src/main.tsx`
+  SPA entry point.
+- `apps/web/src/router.tsx`
+  Route map.
+- `apps/web/src/routes/*.tsx`
+  Feature pages: dashboard, services, runbooks, incidents, postmortems, drills.
+- `apps/web/src/lib/api.ts`
+  Client-side fetch layer. All pages depend on the bootstrap query here.
+- `packages/contracts/src/index.ts`
+  Authoritative runtime shapes and input schemas.
+- `packages/core/src/index.ts`
+  Shared domain logic for runbook-review state, dashboard metrics, and sorting helpers.
+- `packages/config/src/index.ts`
+  Env defaults and parsing. Also contains one current footgun noted below.
+- `packages/db/prisma/schema.prisma`
+  Intended future relational schema. Treat it as target-state reference, not current runtime truth.
 
-## v1
+## Verified build and run workflow
 
-- service health links and external references
-- recurring review reminders
-- templates for incidents, runbooks, and postmortems
-- exportable timeline and postmortem views
-- audit log for sensitive edits
+### Verified environment
 
-## Later
+These versions were directly observed during review on 2026-03-18:
 
-- change-calendar style views
-- drill scheduling
-- lightweight integrations with external monitors
-- public or internal read-only status surfaces
+- Node.js `v24.13.1`
+- pnpm `10.32.1`
 
-## Architecture Direction
+Observed repo/tooling facts:
 
-- Frontend: React + Vite SPA
-- App shell: TanStack Router
-- Server state: TanStack Query
-- Forms: TanStack Form
-- API: Hono
-- Database: PostgreSQL
-- ORM: Prisma
-- Auth: Better Auth
-- Validation: Zod
-- Tooling: Biome, Vitest, Playwright
+- package manager is pinned as `pnpm@10.32.1` in `package.json`
+- TypeScript is workspace-wide
+- Biome is the configured formatter/linter
+- PostgreSQL is not required for the current runnable app
 
-## Suggested Repository Shape
+### Verified commands run successfully
 
-```text
-apps/
-  api/            Hono API and review/drill workflows
-  web/            React SPA for operators
-packages/
-  contracts/      shared Zod schemas and API contracts
-  db/             Prisma schema, generated client, migrations
-  core/           service catalog, runbook, incident, and drill domain logic
-  config/         environment validation
-  testing/        shared test helpers
+All commands below were run successfully from the repository root on 2026-03-18 unless otherwise noted.
+
+#### Install
+
+```bash
+pnpm install --frozen-lockfile
 ```
 
-## Repository Reality
+Verified result:
 
-As of 2026-03-17, the repository is no longer planning-only. The current implementation includes:
+- succeeded
+- pnpm warned that some dependency build scripts were ignored and suggested `pnpm approve-builds`
+- this warning did not block the workspace because `pnpm build` explicitly runs `prisma generate`
 
-- a pnpm workspace with `apps/api`, `apps/web`, and shared packages under `packages/*`
-- a Hono API with validated CRUD flows for services, runbooks, incidents, postmortems, follow-up status updates, and drills
-- a React + Vite SPA using TanStack Router, TanStack Query, and TanStack Form
-- shared Zod contracts and core domain logic for stale runbook review state and dashboard metrics
-- a Prisma schema and generated client for the intended PostgreSQL-backed future state
-- a file-backed development store seeded from `apps/api/data/opsledger.json`
+#### Build
 
-Important: the live application currently persists to the JSON file store, not PostgreSQL. Prisma/PostgreSQL is scaffolded but not yet wired into runtime flows.
+```bash
+pnpm build
+```
 
-## Verified Baseline
+Verified result:
 
-The following commands were verified successfully on 2026-03-17:
+- succeeded
+- ran `pnpm db:generate`
+- built shared packages
+- built `apps/api`
+- built `apps/web`
 
-- `pnpm build`
-- `pnpm test`
-- `pnpm lint`
+#### Test
 
-If a future change breaks any of these, restore this baseline before expanding scope.
+```bash
+pnpm test
+```
 
-## Current Gaps
+Verified result:
 
-- Better Auth is not implemented yet.
-- Workspace/team setup is represented in seeded data, not in a real auth/session flow.
-- API persistence is JSON-file based; Prisma/PostgreSQL is not the active source of truth yet.
-- Incident lifecycle testing exists at a basic API/domain level only and should be expanded.
-- Export flows, audit logging, deployment/backups guidance, and search/filter polish are still open.
+- succeeded
+- ran package builds first
+- executed Vitest suites in `packages/core` and `apps/api`
+- current verified test count: 5 tests total
 
-## Source Of Truth
+#### Lint
 
-- Product scope and milestone intent live in this file.
-- Shared data shapes must remain aligned with `packages/contracts`.
-- Cross-entity business rules belong in `packages/core`.
-- The current runnable seed/demo state lives in `apps/api/data/opsledger.json`.
-- Until the database migration is complete, changes to persistence behavior should preserve local development ergonomics.
+```bash
+pnpm lint
+```
 
-## Milestones
+Verified result:
 
-## Milestone 0: Foundation
+- succeeded
+- `biome check .`
 
-- [x] Initialize pnpm workspace and project tooling
-- [x] Scaffold app and package layout
-- [x] Add environment validation and shared scripts
-- [ ] Add baseline auth and workspace setup
+#### Typecheck
 
-## Milestone 1: Catalog and runbooks
+```bash
+pnpm typecheck
+```
 
-- [x] Model services, owners, environments, dependencies, and runbooks
-- [x] Build service catalog views
-- [x] Build runbook CRUD and review-date handling
-- [x] Add stale warning logic
+Verified result:
 
-## Milestone 2: Incidents and postmortems
+- succeeded across `packages/*`, `apps/web`, and `apps/api`
 
-- [x] Model incidents, timeline entries, follow-ups, and postmortems
-- [x] Build incident timeline UI
-- [x] Build postmortem authoring and follow-up tracking
-- [ ] Add test coverage for incident lifecycle flows
+#### Verified API dev startup
 
-## Milestone 3: Drills and operational reviews
+Default ports `3000` and `3001` were occupied on the review machine by another repo, so verification used alternate ports.
 
-- [x] Model restore drills and tabletop exercises
-- [x] Build drill history and evidence capture
-- [x] Build recurring review visibility
-- [ ] Add exportable records for incidents and drills
+```bash
+API_PORT=3301 OPSLEDGER_DATA_PATH="$PWD/apps/api/data/opsledger.json" pnpm --filter @opsledger/api dev
+```
 
-## Milestone 4: Hardening
+Verified follow-up checks:
 
-- [ ] Add audit logging for critical edits
-- [ ] Add deployment docs and backups guidance
-- [ ] Add polish for search and filtering
-- [ ] Prepare first release notes and demo data
+```bash
+curl -sS http://127.0.0.1:3301/health
+curl -sS http://127.0.0.1:3301/api/bootstrap
+```
 
-## Definition of Done
+Verified result:
 
-OpsLedger is ready for its first real release when:
+- API started successfully
+- `/health` returned `{"status":"ok","service":"opsledger-api"}`
+- `/api/bootstrap` returned the expected seeded workspace snapshot
 
-- a team can model services and ownership clearly
-- runbooks can be written, reviewed, and flagged as stale
-- incident timelines and postmortems can be recorded end to end
-- drill history is durable and easy to review
-- the app is self-hostable on a small-team setup
-- the main flows have automated tests and documentation
+#### Verified web dev startup
 
-## Agent Working Rules
+To avoid the occupied default ports and to point the SPA at the verified API instance:
 
-- Keep the product incident-first and operations-first.
-- Do not let the scope drift into a generic portal or wiki.
-- Prefer durable records and explicit review cycles over chat-style ephemera.
-- Update this file when milestones or product boundaries change.
-- Record important product and architecture decisions below.
-- Before adding major new scope, check whether the work is better framed as auth, persistence hardening, workflow completion, or export/review support.
-- Preserve the calm operator-focused UI voice; avoid generic admin-dashboard drift.
-- Keep local development simple. New setup requirements should be documented in `README.md` and reflected in `.env.example`.
+```bash
+VITE_API_URL=http://127.0.0.1:3301 pnpm --filter @opsledger/web exec vite --port 3310 --host 127.0.0.1
+```
 
-## Next Pass Priorities
+Verified follow-up check:
 
-The next agent should prefer one of these tracks, in order:
+```bash
+curl -sS http://127.0.0.1:3310
+```
 
-1. Implement baseline auth and workspace setup with Better Auth, without turning the product into a multi-tenant portal.
-2. Replace or abstract the JSON file store behind a repository boundary so Prisma/PostgreSQL can become the active persistence layer.
-3. Expand automated coverage around incident lifecycle flows, follow-up transitions, and drill/runbook regressions.
-4. Add exportable incident and drill records, keeping records durable and review-friendly.
+Verified result:
 
-If scope is unclear, default to whichever of auth or persistence most cleanly reduces the gap between the current build and the MVP definition.
+- Vite served the OpsLedger HTML shell successfully
+- page title was `OpsLedger`
 
-## Next Agent Checklist
+### Unverified or currently unsafe commands
 
-- Read `README.md` and this file before changing scope.
-- Confirm the current baseline with `pnpm build`, `pnpm test`, and `pnpm lint`.
-- Decide whether the pass is primarily auth, persistence, testing, or workflow polish.
-- Update milestone checkboxes and progress notes when meaningful work lands.
-- Record any architecture decision that changes the persistence or auth direction.
+These commands exist or are implied by the repo, but they were either not verified end-to-end or are currently unsafe as checked in.
 
-## Progress Notes
+#### Checked in, but currently broken or misleading
 
-- 2026-03-17: Initial operations-product brief and milestone plan added.
-- 2026-03-17: Built a pnpm workspace with React/Vite web app, Hono API, shared contracts/core packages, Prisma schema, seeded development data, and verified `pnpm build`, `pnpm test`, and `pnpm lint`.
-- 2026-03-17: Build contract updated to document the implemented baseline, active gaps, and recommended next-pass priorities for the next agent handoff.
+```bash
+pnpm dev
+```
 
-## Decision Log
+Current status:
 
-- 2026-03-17: OpsLedger will focus on operational memory, runbooks, and drills instead of trying to become a full developer portal.
-- 2026-03-17: Development persistence will use a repo-local JSON data file first while the PostgreSQL/Prisma package is prepared for the next persistence and auth phase.
+- not trustworthy as written
+- the script in root `package.json` uses `pnpm --parallel --filter @opsledger/api dev --filter @opsledger/web dev`
+- in practice, pnpm treats the trailing filter segment incorrectly and the command does not reliably launch both apps
+- recommended future fix is likely:
 
-## Open Questions
+```bash
+pnpm --parallel --filter @opsledger/api --filter @opsledger/web dev
+```
 
-- What is the right minimal reminder/review system for v1 without turning the app into a notification platform?
-- Should dependency relationships stay simple in the first release or support richer typed relationships immediately?
-- What is the smallest Better Auth rollout that preserves the calm single-workspace setup without blocking self-hosted adoption?
+Do not document `pnpm dev` as safe again until it is re-tested after a script fix.
+
+```bash
+pnpm --filter @opsledger/api dev
+```
+
+Current status:
+
+- unsafe if you rely on the default `OPSLEDGER_DATA_PATH`
+- because filtered package commands run from `apps/api`, the default `./apps/api/data/opsledger.json` fallback resolves to `apps/api/apps/api/data/opsledger.json`
+- this causes a shadow data file to be created outside the intended location
+
+Use an explicit absolute path or `"$PWD/apps/api/data/opsledger.json"` from repo root instead.
+
+#### Likely-valid but not directly run in isolation during review
+
+```bash
+pnpm db:generate
+pnpm format
+```
+
+Notes:
+
+- `pnpm db:generate` was exercised indirectly through `pnpm build`
+- `pnpm format` is inferred from `package.json` and Biome config, but was not run
+
+#### Absent workflows
+
+There are currently no checked-in commands for:
+
+- Prisma migrations
+- database seeding
+- Playwright or browser E2E tests
+- production deployment
+- backups or restore automation
+
+## Source-of-truth notes
+
+### Authoritative files and directories
+
+- `BUILD.md`
+  Primary operational handoff. This file should supersede stale assumptions elsewhere.
+- `package.json`
+  Root workflow commands.
+- `pnpm-lock.yaml`
+  Dependency lockfile.
+- `pnpm-workspace.yaml`
+  Workspace membership.
+- `apps/api/src/app.ts`
+  Current API behavior.
+- `apps/api/src/store.ts`
+  Current persistence behavior.
+- `apps/api/data/opsledger.json`
+  Current live dev snapshot and runtime seed.
+- `apps/web/src/router.tsx`
+  SPA route surface.
+- `apps/web/src/routes/*.tsx`
+  User-visible feature surface.
+- `packages/contracts/src/index.ts`
+  Runtime data contracts and request validation.
+- `packages/core/src/index.ts`
+  Shared business logic currently used by the SPA.
+- `packages/db/prisma/schema.prisma`
+  Target relational model for future persistence work.
+- `.env.example`
+  Intended environment variables and default local ports.
+
+### Conflicts, stale docs, and ambiguous areas
+
+- `README.md` is useful for orientation, but it is incomplete as an operational source of truth.
+- `README.md` says `pnpm dev` starts the workspace together; that is not currently trustworthy without fixing the root script.
+- `README.md` does not warn about the `OPSLEDGER_DATA_PATH` relative-path trap for filtered API runs.
+- `packages/db/prisma/schema.prisma` encodes stronger constraints than the current JSON store enforces.
+- `packages/config/src/index.ts` exports `parseWebEnv`, but the web app currently reads `import.meta.env` directly in `apps/web/src/lib/api.ts`; web env validation is not centrally enforced.
+
+### Important environment and config files
+
+- `.env.example`
+  Declares `DATABASE_URL`, `OPSLEDGER_DATA_PATH`, `API_PORT`, `VITE_API_URL`.
+- `packages/config/src/index.ts`
+  Supplies defaults for API and web env parsing.
+- `apps/web/vite.config.ts`
+  Sets default dev server port `3000`.
+- `biome.json`
+  Lint/format rules.
+- `tsconfig.base.json`
+  Shared TS config and workspace path aliases.
+
+## Current gaps and known issues
+
+### Runtime and workflow issues
+
+- Root `pnpm dev` script is malformed and should be fixed before trusting it.
+- Filtered API dev runs can create a shadow data file under `apps/api/apps/api/data/opsledger.json` if `OPSLEDGER_DATA_PATH` is not set explicitly.
+- The file store rewrites the entire JSON snapshot on each write and has no locking or conflict protection.
+- There is no repository abstraction yet; `createApp` depends on `FileOpsLedgerStore` directly.
+
+### Product and feature gaps
+
+- No auth, sessions, or Better Auth integration.
+- No multi-workspace behavior beyond seeded workspace metadata.
+- No edit or delete flows for services, runbooks, incidents, postmortems, or drills.
+- Incident status cannot be updated after creation through a dedicated endpoint.
+- Follow-up status changes are limited to the current simple advance flow in the UI.
+- No export flows for incidents, postmortems, or drills.
+- No search, filtering, audit log, reminders, or deployment/backups guidance.
+
+### Persistence and model mismatch risks
+
+- Prisma is scaffolded but unused at runtime.
+- There are no Prisma migration files; only `schema.prisma` exists.
+- The JSON store does not enforce referential integrity between services, owners, incidents, and drills.
+- The JSON store does not enforce service slug uniqueness even though Prisma intends `@@unique([workspaceId, slug])`.
+- The JSON store does not enforce one-postmortem-per-incident even though Prisma intends `incidentId @unique`.
+- Moving to Prisma without first aligning runtime invariants will likely surface existing data-quality issues.
+
+### Testing gaps
+
+- No web tests.
+- No Playwright tests.
+- Current automated coverage is limited to:
+  - `packages/core/src/index.test.ts`
+  - `apps/api/src/app.test.ts`
+- The happy path is tested more than edge cases and persistence constraints.
+
+## Next-pass priorities
+
+### Highest-impact work
+
+1. Fix local dev safety first.
+   - Repair the root `pnpm dev` script.
+   - Fix `OPSLEDGER_DATA_PATH` so filtered API runs use the intended repo-root file.
+   - Update `README.md` after re-verifying the corrected commands.
+2. Introduce a persistence boundary before attempting a Prisma cutover.
+   - Replace direct `FileOpsLedgerStore` coupling with an interface or repository abstraction.
+   - Align current runtime invariants with the Prisma schema before switching backends.
+3. Decide whether auth or persistence is the next true milestone.
+   - Auth is still completely absent.
+   - Persistence hardening is currently the sharper operational risk.
+
+### Quick wins
+
+- fix `pnpm dev`
+- fix the default API data-path behavior
+- add API tests for duplicate slugs, duplicate postmortems, and missing foreign references
+- document a safe local run recipe in both `README.md` and this file
+
+### Deeper refactors
+
+- define a store interface shared by JSON and Prisma implementations
+- migrate runtime writes from whole-file rewrites to a database-backed implementation
+- add real mutation/update flows instead of create-only records plus bootstrap refetch
+- add browser-level tests for the core CRUD paths
+
+## Next-agent checklist
+
+Follow this checklist before starting new feature work:
+
+1. Read `BUILD.md` first, then `README.md`.
+2. Verify the baseline from repo root:
+
+   ```bash
+   pnpm install --frozen-lockfile
+   pnpm build
+   pnpm test
+   pnpm lint
+   pnpm typecheck
+   ```
+
+3. Do not trust `pnpm dev` until you have fixed and re-verified it.
+4. If you need to run the API before fixing the root script, use:
+
+   ```bash
+   API_PORT=3301 OPSLEDGER_DATA_PATH="$PWD/apps/api/data/opsledger.json" pnpm --filter @opsledger/api dev
+   ```
+
+5. If you need to run the web app against that API, use:
+
+   ```bash
+   VITE_API_URL=http://127.0.0.1:3301 pnpm --filter @opsledger/web exec vite --port 3310 --host 127.0.0.1
+   ```
+
+6. Before touching persistence, compare:
+   - `apps/api/src/store.ts`
+   - `packages/contracts/src/index.ts`
+   - `packages/db/prisma/schema.prisma`
+
+7. Treat `apps/api/data/opsledger.json` as the active runtime dataset until a persistence migration is complete.
+8. If you change workflows, architecture, invariants, ports, env behavior, or source-of-truth guidance, update this file in the same pass.
+
+## Verification log
+
+- 2026-03-18: Verified `pnpm install --frozen-lockfile`, `pnpm build`, `pnpm test`, `pnpm lint`, and `pnpm typecheck`.
+- 2026-03-18: Verified API startup with explicit `OPSLEDGER_DATA_PATH="$PWD/apps/api/data/opsledger.json"` and alternate port `3301`.
+- 2026-03-18: Verified Vite startup with explicit `VITE_API_URL=http://127.0.0.1:3301` and alternate port `3310`.
+- 2026-03-18: Confirmed that the checked-in root `pnpm dev` script is not currently a reliable source of truth.
+- 2026-03-18: Confirmed that filtered API dev runs can create a shadow JSON data file unless `OPSLEDGER_DATA_PATH` is set explicitly.
