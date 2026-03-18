@@ -1,0 +1,21 @@
+{
+  "name": "@opsledger/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --clean",
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.11",
+    "@opsledger/config": "workspace:*",
+    "@opsledger/contracts": "workspace:*",
+    "@opsledger/core": "workspace:*",
+    "@opsledger/testing": "workspace:*",
+    "hono": "^4.12.8",
+    "zod": "^4.3.6"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@opsledger/testing",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --clean --dts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@opsledger/contracts": "workspace:*",
+    "@opsledger/core": "workspace:*"
+  }
+}

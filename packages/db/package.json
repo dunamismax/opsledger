@@ -1,0 +1,23 @@
+{
+  "name": "@opsledger/db",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json --outDir dist --declaration false --declarationMap false",
+    "prisma": "prisma",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@opsledger/contracts": "workspace:*",
+    "@prisma/client": "^6.18.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "prisma": "^6.18.0"
+  }
+}

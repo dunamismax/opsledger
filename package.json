@@ -1,0 +1,30 @@
+{
+  "name": "opsledger",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.32.1",
+  "scripts": {
+    "build": "pnpm db:generate && pnpm build:packages && pnpm --filter @opsledger/api build && pnpm --filter @opsledger/web build",
+    "build:packages": "pnpm --filter @opsledger/contracts build && pnpm --filter @opsledger/core build && pnpm --filter @opsledger/config build && pnpm --filter @opsledger/testing build && pnpm --filter @opsledger/db build",
+    "db:generate": "pnpm --filter @opsledger/db prisma generate",
+    "dev": "pnpm build:packages && pnpm --parallel --filter @opsledger/api dev --filter @opsledger/web dev",
+    "format": "biome format --write .",
+    "lint": "biome check .",
+    "test": "pnpm build:packages && pnpm --filter @opsledger/core test && pnpm --filter @opsledger/api test",
+    "typecheck": "pnpm -r --if-present typecheck"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "jsdom": "^26.0.0",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.0",
+    "vitest": "^3.1.4"
+  }
+}

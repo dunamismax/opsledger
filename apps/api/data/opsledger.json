@@ -1,0 +1,191 @@
+{
+  "workspace": {
+    "id": "workspace-1",
+    "name": "Northline Ops",
+    "slug": "northline-ops",
+    "description": "Operational memory for the platform team and recovery reviews."
+  },
+  "operator": {
+    "id": "operator-1",
+    "name": "Riley Chen",
+    "email": "riley@example.com",
+    "role": "Platform Lead"
+  },
+  "owners": [
+    {
+      "id": "owner-1",
+      "name": "Riley Chen",
+      "email": "riley@example.com",
+      "team": "Platform"
+    },
+    {
+      "id": "owner-2",
+      "name": "Morgan Silva",
+      "email": "morgan@example.com",
+      "team": "Applications"
+    },
+    {
+      "id": "owner-3",
+      "name": "Noah Patel",
+      "email": "noah@example.com",
+      "team": "Data"
+    }
+  ],
+  "services": [
+    {
+      "id": "service-1",
+      "slug": "edge-api",
+      "name": "Edge API",
+      "summary": "Public API for tenant traffic and operator workflows.",
+      "ownerId": "owner-2",
+      "environment": "production",
+      "tier": "critical",
+      "status": "healthy",
+      "dependencyIds": ["service-2", "service-3"],
+      "links": [
+        {
+          "label": "Grafana",
+          "url": "https://example.com/grafana/edge-api"
+        },
+        {
+          "label": "Pager",
+          "url": "https://example.com/pager/edge-api"
+        }
+      ]
+    },
+    {
+      "id": "service-2",
+      "slug": "ledger-db",
+      "name": "Ledger DB",
+      "summary": "Primary PostgreSQL cluster for operational state.",
+      "ownerId": "owner-1",
+      "environment": "production",
+      "tier": "critical",
+      "status": "at_risk",
+      "dependencyIds": [],
+      "links": [
+        {
+          "label": "Recovery Plan",
+          "url": "https://example.com/recovery/ledger-db"
+        }
+      ]
+    },
+    {
+      "id": "service-3",
+      "slug": "event-worker",
+      "name": "Event Worker",
+      "summary": "Processes incident exports and review reminders.",
+      "ownerId": "owner-3",
+      "environment": "production",
+      "tier": "support",
+      "status": "degraded",
+      "dependencyIds": ["service-2"],
+      "links": [
+        {
+          "label": "Queue Metrics",
+          "url": "https://example.com/queues/event-worker"
+        }
+      ]
+    }
+  ],
+  "runbooks": [
+    {
+      "id": "runbook-1",
+      "serviceId": "service-1",
+      "title": "Edge API degradation response",
+      "summary": "Triage rising latency and switch traffic if saturation persists.",
+      "body": "1. Confirm latency increase in Grafana. 2. Check worker backlog and DB saturation. 3. If queue delay exceeds 10 minutes, divert bulk exports. 4. If database pressure continues, fail read-heavy traffic to the replica pool.",
+      "reviewedAt": "2026-03-01T14:00:00.000Z",
+      "reviewCadenceDays": 30,
+      "updatedAt": "2026-03-01T14:00:00.000Z",
+      "version": 4
+    },
+    {
+      "id": "runbook-2",
+      "serviceId": "service-2",
+      "title": "Ledger DB restore procedure",
+      "summary": "Restore from the latest base backup and replay WAL to target.",
+      "body": "1. Freeze writes. 2. Promote the warm standby if healthy. 3. If promotion fails, restore the latest validated backup. 4. Replay WAL until the selected recovery target. 5. Verify replication and resume traffic.",
+      "reviewedAt": "2026-01-10T09:00:00.000Z",
+      "reviewCadenceDays": 45,
+      "updatedAt": "2026-01-10T09:00:00.000Z",
+      "version": 7
+    }
+  ],
+  "incidents": [
+    {
+      "id": "incident-1",
+      "title": "Edge API latency spike during export window",
+      "serviceIds": ["service-1", "service-3"],
+      "severity": "sev2",
+      "status": "monitoring",
+      "openedAt": "2026-03-14T17:10:00.000Z",
+      "closedAt": null,
+      "summary": "Latency rose above SLO when the export worker backlog cascaded into the public API.",
+      "timeline": [
+        {
+          "id": "timeline-1",
+          "occurredAt": "2026-03-14T17:11:00.000Z",
+          "kind": "detection",
+          "body": "Latency alert fired for p95 > 900ms.",
+          "author": "Riley Chen"
+        },
+        {
+          "id": "timeline-2",
+          "occurredAt": "2026-03-14T17:18:00.000Z",
+          "kind": "mitigation",
+          "body": "Paused bulk exports and cleared queue pressure.",
+          "author": "Morgan Silva"
+        }
+      ]
+    }
+  ],
+  "postmortems": [
+    {
+      "id": "postmortem-1",
+      "incidentId": "incident-1",
+      "title": "Export backlog saturation",
+      "summary": "Queue growth and weak alerting delayed mitigation while API pods absorbed extra work.",
+      "contributingFactors": [
+        "Queue alert thresholds were tuned for normal throughput only.",
+        "The runbook did not describe the export-diversion path clearly."
+      ],
+      "followUps": [
+        {
+          "id": "followup-1",
+          "title": "Add queue saturation early warning",
+          "owner": "Noah Patel",
+          "dueAt": "2026-03-20T00:00:00.000Z",
+          "status": "in_progress"
+        },
+        {
+          "id": "followup-2",
+          "title": "Revise API degradation runbook with diversion step",
+          "owner": "Morgan Silva",
+          "dueAt": "2026-03-18T00:00:00.000Z",
+          "status": "open"
+        }
+      ]
+    }
+  ],
+  "drills": [
+    {
+      "id": "drill-1",
+      "title": "Quarterly Ledger DB restore drill",
+      "serviceIds": ["service-2"],
+      "kind": "restore",
+      "performedAt": "2026-02-28T16:00:00.000Z",
+      "facilitator": "Riley Chen",
+      "outcome": "partial",
+      "notes": "Restore completed inside RTO, but WAL replay validation took longer than expected.",
+      "evidence": [
+        {
+          "id": "evidence-1",
+          "label": "Drill worksheet",
+          "url": "https://example.com/drills/ledger-db-q1",
+          "notes": "Includes timing checkpoints and validation output."
+        }
+      ]
+    }
+  ]
+}

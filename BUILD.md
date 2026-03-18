@@ -8,7 +8,7 @@ This file is the build contract for OpsLedger. Agents should use it to stay alig
 - Category: self-hosted operations workspace
 - Primary users: small engineering teams, operators, homelabbers, internal platform owners
 - Core promise: keep operational memory durable, reviewable, and actionable
-- Current status: planning
+- Current status: initial MVP foundation implemented
 
 ## Product Vision
 
@@ -93,34 +93,73 @@ packages/
   testing/        shared test helpers
 ```
 
+## Repository Reality
+
+As of 2026-03-17, the repository is no longer planning-only. The current implementation includes:
+
+- a pnpm workspace with `apps/api`, `apps/web`, and shared packages under `packages/*`
+- a Hono API with validated CRUD flows for services, runbooks, incidents, postmortems, follow-up status updates, and drills
+- a React + Vite SPA using TanStack Router, TanStack Query, and TanStack Form
+- shared Zod contracts and core domain logic for stale runbook review state and dashboard metrics
+- a Prisma schema and generated client for the intended PostgreSQL-backed future state
+- a file-backed development store seeded from `apps/api/data/opsledger.json`
+
+Important: the live application currently persists to the JSON file store, not PostgreSQL. Prisma/PostgreSQL is scaffolded but not yet wired into runtime flows.
+
+## Verified Baseline
+
+The following commands were verified successfully on 2026-03-17:
+
+- `pnpm build`
+- `pnpm test`
+- `pnpm lint`
+
+If a future change breaks any of these, restore this baseline before expanding scope.
+
+## Current Gaps
+
+- Better Auth is not implemented yet.
+- Workspace/team setup is represented in seeded data, not in a real auth/session flow.
+- API persistence is JSON-file based; Prisma/PostgreSQL is not the active source of truth yet.
+- Incident lifecycle testing exists at a basic API/domain level only and should be expanded.
+- Export flows, audit logging, deployment/backups guidance, and search/filter polish are still open.
+
+## Source Of Truth
+
+- Product scope and milestone intent live in this file.
+- Shared data shapes must remain aligned with `packages/contracts`.
+- Cross-entity business rules belong in `packages/core`.
+- The current runnable seed/demo state lives in `apps/api/data/opsledger.json`.
+- Until the database migration is complete, changes to persistence behavior should preserve local development ergonomics.
+
 ## Milestones
 
 ## Milestone 0: Foundation
 
-- [ ] Initialize pnpm workspace and project tooling
-- [ ] Scaffold app and package layout
-- [ ] Add environment validation and shared scripts
+- [x] Initialize pnpm workspace and project tooling
+- [x] Scaffold app and package layout
+- [x] Add environment validation and shared scripts
 - [ ] Add baseline auth and workspace setup
 
 ## Milestone 1: Catalog and runbooks
 
-- [ ] Model services, owners, environments, dependencies, and runbooks
-- [ ] Build service catalog views
-- [ ] Build runbook CRUD and review-date handling
-- [ ] Add stale warning logic
+- [x] Model services, owners, environments, dependencies, and runbooks
+- [x] Build service catalog views
+- [x] Build runbook CRUD and review-date handling
+- [x] Add stale warning logic
 
 ## Milestone 2: Incidents and postmortems
 
-- [ ] Model incidents, timeline entries, follow-ups, and postmortems
-- [ ] Build incident timeline UI
-- [ ] Build postmortem authoring and follow-up tracking
+- [x] Model incidents, timeline entries, follow-ups, and postmortems
+- [x] Build incident timeline UI
+- [x] Build postmortem authoring and follow-up tracking
 - [ ] Add test coverage for incident lifecycle flows
 
 ## Milestone 3: Drills and operational reviews
 
-- [ ] Model restore drills and tabletop exercises
-- [ ] Build drill history and evidence capture
-- [ ] Build recurring review visibility
+- [x] Model restore drills and tabletop exercises
+- [x] Build drill history and evidence capture
+- [x] Build recurring review visibility
 - [ ] Add exportable records for incidents and drills
 
 ## Milestone 4: Hardening
@@ -148,16 +187,42 @@ OpsLedger is ready for its first real release when:
 - Prefer durable records and explicit review cycles over chat-style ephemera.
 - Update this file when milestones or product boundaries change.
 - Record important product and architecture decisions below.
+- Before adding major new scope, check whether the work is better framed as auth, persistence hardening, workflow completion, or export/review support.
+- Preserve the calm operator-focused UI voice; avoid generic admin-dashboard drift.
+- Keep local development simple. New setup requirements should be documented in `README.md` and reflected in `.env.example`.
+
+## Next Pass Priorities
+
+The next agent should prefer one of these tracks, in order:
+
+1. Implement baseline auth and workspace setup with Better Auth, without turning the product into a multi-tenant portal.
+2. Replace or abstract the JSON file store behind a repository boundary so Prisma/PostgreSQL can become the active persistence layer.
+3. Expand automated coverage around incident lifecycle flows, follow-up transitions, and drill/runbook regressions.
+4. Add exportable incident and drill records, keeping records durable and review-friendly.
+
+If scope is unclear, default to whichever of auth or persistence most cleanly reduces the gap between the current build and the MVP definition.
+
+## Next Agent Checklist
+
+- Read `README.md` and this file before changing scope.
+- Confirm the current baseline with `pnpm build`, `pnpm test`, and `pnpm lint`.
+- Decide whether the pass is primarily auth, persistence, testing, or workflow polish.
+- Update milestone checkboxes and progress notes when meaningful work lands.
+- Record any architecture decision that changes the persistence or auth direction.
 
 ## Progress Notes
 
 - 2026-03-17: Initial operations-product brief and milestone plan added.
+- 2026-03-17: Built a pnpm workspace with React/Vite web app, Hono API, shared contracts/core packages, Prisma schema, seeded development data, and verified `pnpm build`, `pnpm test`, and `pnpm lint`.
+- 2026-03-17: Build contract updated to document the implemented baseline, active gaps, and recommended next-pass priorities for the next agent handoff.
 
 ## Decision Log
 
 - 2026-03-17: OpsLedger will focus on operational memory, runbooks, and drills instead of trying to become a full developer portal.
+- 2026-03-17: Development persistence will use a repo-local JSON data file first while the PostgreSQL/Prisma package is prepared for the next persistence and auth phase.
 
 ## Open Questions
 
 - What is the right minimal reminder/review system for v1 without turning the app into a notification platform?
 - Should dependency relationships stay simple in the first release or support richer typed relationships immediately?
+- What is the smallest Better Auth rollout that preserves the calm single-workspace setup without blocking self-hosted adoption?
