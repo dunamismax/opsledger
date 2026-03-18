@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+type ApiEnvOptions = {
+  defaultDataPath: string;
+};
+
 export const apiEnvSchema = z.object({
   API_PORT: z.coerce.number().int().positive().default(3001),
   OPSLEDGER_DATA_PATH: z.string().min(1),
@@ -10,11 +14,13 @@ export const webEnvSchema = z.object({
   VITE_API_URL: z.string().url(),
 });
 
-export function parseApiEnv(env: Record<string, string | undefined>) {
+export function parseApiEnv(
+  env: Record<string, string | undefined>,
+  options: ApiEnvOptions,
+) {
   return apiEnvSchema.parse({
     API_PORT: env.API_PORT,
-    OPSLEDGER_DATA_PATH:
-      env.OPSLEDGER_DATA_PATH ?? './apps/api/data/opsledger.json',
+    OPSLEDGER_DATA_PATH: env.OPSLEDGER_DATA_PATH ?? options.defaultDataPath,
     DATABASE_URL: env.DATABASE_URL,
   });
 }

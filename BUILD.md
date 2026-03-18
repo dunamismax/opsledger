@@ -64,7 +64,7 @@ Important current reality:
 - `packages/core/src/index.ts`
   Shared domain logic for runbook-review state, dashboard metrics, and sorting helpers.
 - `packages/config/src/index.ts`
-  Env defaults and parsing. Also contains one current footgun noted below.
+  Env defaults and parsing used by both the API and SPA.
 - `packages/db/prisma/schema.prisma`
   Intended future relational schema. Treat it as target-state reference, not current runtime truth.
 
@@ -97,8 +97,8 @@ pnpm install --frozen-lockfile
 Verified result:
 
 - succeeded
-- pnpm warned that some dependency build scripts were ignored and suggested `pnpm approve-builds`
-- this warning did not block the workspace because `pnpm build` explicitly runs `prisma generate`
+- lockfile was up to date
+- no install drift was reported
 
 #### Build
 
@@ -125,7 +125,7 @@ Verified result:
 - succeeded
 - ran package builds first
 - executed Vitest suites in `packages/core` and `apps/api`
-- current verified test count: 5 tests total
+- current verified test count: 9 tests total
 
 #### Lint
 
@@ -150,90 +150,78 @@ Verified result:
 
 #### Verified API dev startup
 
-Default ports `3000` and `3001` were occupied on the review machine by another repo, so verification used alternate ports.
+Default ports `3000` and `3001` were occupied on the review machine by another repo, so verification used an alternate API port.
 
 ```bash
-API_PORT=3301 OPSLEDGER_DATA_PATH="$PWD/apps/api/data/opsledger.json" pnpm --filter @opsledger/api dev
+API_PORT=3402 pnpm --filter @opsledger/api dev
 ```
 
 Verified follow-up checks:
 
 ```bash
-curl -sS http://127.0.0.1:3301/health
-curl -sS http://127.0.0.1:3301/api/bootstrap
+curl -sS http://127.0.0.1:3402/health
 ```
 
 Verified result:
 
 - API started successfully
+- the API logged `...using /Users/sawyer/github/opsledger/apps/api/data/opsledger.json`
 - `/health` returned `{"status":"ok","service":"opsledger-api"}`
-- `/api/bootstrap` returned the expected seeded workspace snapshot
+- no shadow file was created under `apps/api/apps/api/data/opsledger.json`
 
-#### Verified web dev startup
+#### Verified root workspace dev startup
 
-To avoid the occupied default ports and to point the SPA at the verified API instance:
+To verify the repaired root workflow while default ports were occupied:
 
 ```bash
-VITE_API_URL=http://127.0.0.1:3301 pnpm --filter @opsledger/web exec vite --port 3310 --host 127.0.0.1
+API_PORT=3401 VITE_API_URL=http://127.0.0.1:3401 pnpm dev -- --port 3410 --host 127.0.0.1
 ```
 
 Verified follow-up check:
 
 ```bash
-curl -sS http://127.0.0.1:3310
+curl -sS http://127.0.0.1:3401/health
+curl -sS http://localhost:3002
 ```
 
 Verified result:
 
-- Vite served the OpsLedger HTML shell successfully
-- page title was `OpsLedger`
+- root `pnpm dev` launched both apps successfully
+- the API served `{"status":"ok","service":"opsledger-api"}` on `3401`
+- Vite auto-selected `http://localhost:3002` because `3000` and `3001` were already occupied
+- the SPA served the OpsLedger HTML shell and page title `OpsLedger`
+
+#### Verified format
+
+```bash
+pnpm format
+```
+
+Verified result:
+
+- succeeded
+- ran `biome format --write .`
+- no additional changes were needed after the earlier targeted formatting pass
 
 ### Unverified or currently unsafe commands
 
 These commands exist or are implied by the repo, but they were either not verified end-to-end or are currently unsafe as checked in.
 
-#### Checked in, but currently broken or misleading
-
-```bash
-pnpm dev
-```
-
-Current status:
-
-- not trustworthy as written
-- the script in root `package.json` uses `pnpm --parallel --filter @opsledger/api dev --filter @opsledger/web dev`
-- in practice, pnpm treats the trailing filter segment incorrectly and the command does not reliably launch both apps
-- recommended future fix is likely:
-
-```bash
-pnpm --parallel --filter @opsledger/api --filter @opsledger/web dev
-```
-
-Do not document `pnpm dev` as safe again until it is re-tested after a script fix.
-
-```bash
-pnpm --filter @opsledger/api dev
-```
-
-Current status:
-
-- unsafe if you rely on the default `OPSLEDGER_DATA_PATH`
-- because filtered package commands run from `apps/api`, the default `./apps/api/data/opsledger.json` fallback resolves to `apps/api/apps/api/data/opsledger.json`
-- this causes a shadow data file to be created outside the intended location
-
-Use an explicit absolute path or `"$PWD/apps/api/data/opsledger.json"` from repo root instead.
-
 #### Likely-valid but not directly run in isolation during review
 
 ```bash
 pnpm db:generate
-pnpm format
 ```
 
 Notes:
 
 - `pnpm db:generate` was exercised indirectly through `pnpm build`
-- `pnpm format` is inferred from `package.json` and Biome config, but was not run
+
+#### Command caveats
+
+- `pnpm dev` is now trustworthy for normal local startup.
+- Forwarding extra CLI arguments through root `pnpm dev` did not reliably pin the Vite port in this pass; Vite still fell back to the next available port.
+- If you need a fixed alternate SPA port, run the web app directly with `pnpm --filter @opsledger/web exec vite --port ... --host ...`.
 
 #### Absent workflows
 
@@ -279,10 +267,8 @@ There are currently no checked-in commands for:
 ### Conflicts, stale docs, and ambiguous areas
 
 - `README.md` is useful for orientation, but it is incomplete as an operational source of truth.
-- `README.md` says `pnpm dev` starts the workspace together; that is not currently trustworthy without fixing the root script.
-- `README.md` does not warn about the `OPSLEDGER_DATA_PATH` relative-path trap for filtered API runs.
-- `packages/db/prisma/schema.prisma` encodes stronger constraints than the current JSON store enforces.
-- `packages/config/src/index.ts` exports `parseWebEnv`, but the web app currently reads `import.meta.env` directly in `apps/web/src/lib/api.ts`; web env validation is not centrally enforced.
+- `packages/db/prisma/schema.prisma` still encodes stronger constraints than the current JSON store enforces globally.
+- The JSON store now rejects duplicate service slugs, duplicate postmortems per incident, and missing owner/service/incident references on create flows, but it is still not a full relational integrity layer.
 
 ### Important environment and config files
 
@@ -301,10 +287,8 @@ There are currently no checked-in commands for:
 
 ### Runtime and workflow issues
 
-- Root `pnpm dev` script is malformed and should be fixed before trusting it.
-- Filtered API dev runs can create a shadow data file under `apps/api/apps/api/data/opsledger.json` if `OPSLEDGER_DATA_PATH` is not set explicitly.
 - The file store rewrites the entire JSON snapshot on each write and has no locking or conflict protection.
-- There is no repository abstraction yet; `createApp` depends on `FileOpsLedgerStore` directly.
+- There is now a small `OpsLedgerStore` boundary, but only a single JSON-backed implementation exists.
 
 ### Product and feature gaps
 
@@ -320,9 +304,8 @@ There are currently no checked-in commands for:
 
 - Prisma is scaffolded but unused at runtime.
 - There are no Prisma migration files; only `schema.prisma` exists.
-- The JSON store does not enforce referential integrity between services, owners, incidents, and drills.
-- The JSON store does not enforce service slug uniqueness even though Prisma intends `@@unique([workspaceId, slug])`.
-- The JSON store does not enforce one-postmortem-per-incident even though Prisma intends `incidentId @unique`.
+- The JSON store now enforces several Prisma-aligned create-time invariants, but it still cannot audit or repair pre-existing invalid data automatically.
+- The JSON store still does not provide transactionality, locking, or full dataset-wide relational guarantees.
 - Moving to Prisma without first aligning runtime invariants will likely surface existing data-quality issues.
 
 ### Testing gaps
@@ -332,33 +315,33 @@ There are currently no checked-in commands for:
 - Current automated coverage is limited to:
   - `packages/core/src/index.test.ts`
   - `apps/api/src/app.test.ts`
-- The happy path is tested more than edge cases and persistence constraints.
+- API coverage now includes duplicate-slug, duplicate-postmortem, and missing-reference cases.
+- The happy path is still tested more than UI behavior, concurrency, and migration edge cases.
 
 ## Next-pass priorities
 
 ### Highest-impact work
 
-1. Fix local dev safety first.
-   - Repair the root `pnpm dev` script.
-   - Fix `OPSLEDGER_DATA_PATH` so filtered API runs use the intended repo-root file.
-   - Update `README.md` after re-verifying the corrected commands.
-2. Introduce a persistence boundary before attempting a Prisma cutover.
-   - Replace direct `FileOpsLedgerStore` coupling with an interface or repository abstraction.
-   - Align current runtime invariants with the Prisma schema before switching backends.
-3. Decide whether auth or persistence is the next true milestone.
+1. Keep hardening persistence before any Prisma cutover.
+   - Extend invariant checks beyond create-time happy paths.
+   - Add a data audit/backfill strategy for invalid legacy snapshots before introducing stricter storage.
+2. Decide whether auth or persistence is the next true milestone.
    - Auth is still completely absent.
    - Persistence hardening is currently the sharper operational risk.
+3. Add broader verification at the app boundary.
+   - Cover the SPA with route/component tests or Playwright flows.
+   - Exercise failure states in the UI for the new 404/409 API responses.
 
 ### Quick wins
 
-- fix `pnpm dev`
-- fix the default API data-path behavior
-- add API tests for duplicate slugs, duplicate postmortems, and missing foreign references
-- document a safe local run recipe in both `README.md` and this file
+- add API tests for runbook and drill foreign-key failures, not just service and postmortem cases
+- surface 404/409 mutation errors in the SPA with clearer inline feedback
+- add a tiny data-audit command that checks the JSON snapshot for referential drift
+- document a canonical alternate-port recipe for root development, if keeping that workflow matters
 
 ### Deeper refactors
 
-- define a store interface shared by JSON and Prisma implementations
+- define a fuller store interface shared by JSON and Prisma implementations
 - migrate runtime writes from whole-file rewrites to a database-backed implementation
 - add real mutation/update flows instead of create-only records plus bootstrap refetch
 - add browser-level tests for the core CRUD paths
@@ -378,14 +361,14 @@ Follow this checklist before starting new feature work:
    pnpm typecheck
    ```
 
-3. Do not trust `pnpm dev` until you have fixed and re-verified it.
-4. If you need to run the API before fixing the root script, use:
+3. For normal local startup, `pnpm dev` is now a valid default.
+4. If default ports are occupied and you need a pinned alternate API port, use:
 
    ```bash
-   API_PORT=3301 OPSLEDGER_DATA_PATH="$PWD/apps/api/data/opsledger.json" pnpm --filter @opsledger/api dev
+   API_PORT=3301 pnpm --filter @opsledger/api dev
    ```
 
-5. If you need to run the web app against that API, use:
+5. If you need to run the web app against that API on a fixed alternate port, use:
 
    ```bash
    VITE_API_URL=http://127.0.0.1:3301 pnpm --filter @opsledger/web exec vite --port 3310 --host 127.0.0.1
@@ -401,8 +384,7 @@ Follow this checklist before starting new feature work:
 
 ## Verification log
 
-- 2026-03-18: Verified `pnpm install --frozen-lockfile`, `pnpm build`, `pnpm test`, `pnpm lint`, and `pnpm typecheck`.
-- 2026-03-18: Verified API startup with explicit `OPSLEDGER_DATA_PATH="$PWD/apps/api/data/opsledger.json"` and alternate port `3301`.
-- 2026-03-18: Verified Vite startup with explicit `VITE_API_URL=http://127.0.0.1:3301` and alternate port `3310`.
-- 2026-03-18: Confirmed that the checked-in root `pnpm dev` script is not currently a reliable source of truth.
-- 2026-03-18: Confirmed that filtered API dev runs can create a shadow JSON data file unless `OPSLEDGER_DATA_PATH` is set explicitly.
+- 2026-03-18: Verified `pnpm install --frozen-lockfile`, `pnpm build`, `pnpm test`, `pnpm format`, `pnpm lint`, and `pnpm typecheck`.
+- 2026-03-18: Verified filtered API startup with `API_PORT=3402 pnpm --filter @opsledger/api dev`; confirmed it now uses `/Users/sawyer/github/opsledger/apps/api/data/opsledger.json` by default and does not create a shadow JSON file.
+- 2026-03-18: Verified root `pnpm dev` now launches both apps; with `3000` and `3001` occupied, Vite selected `http://localhost:3002` and the SPA still served the OpsLedger shell.
+- 2026-03-18: Added API coverage for duplicate service slugs, duplicate postmortems, and missing foreign references.

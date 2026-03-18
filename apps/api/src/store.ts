@@ -26,7 +26,34 @@ function createId(prefix: string) {
   return `${prefix}-${randomUUID().slice(0, 8)}`;
 }
 
-export class FileOpsLedgerStore {
+export class StoreError extends Error {
+  constructor(
+    message: string,
+    readonly statusCode: 404 | 409,
+  ) {
+    super(message);
+    this.name = 'StoreError';
+  }
+}
+
+export interface OpsLedgerStore {
+  getSnapshot(): Promise<BootstrapResponse>;
+  createService(input: CreateServiceInput): Promise<Service>;
+  createRunbook(input: CreateRunbookInput): Promise<Runbook>;
+  createIncident(input: CreateIncidentInput): Promise<Incident>;
+  addTimelineEntry(
+    incidentId: string,
+    input: AddTimelineEntryInput,
+  ): Promise<Incident>;
+  createPostmortem(input: CreatePostmortemInput): Promise<Postmortem>;
+  setFollowUpStatus(
+    followUpId: string,
+    input: SetFollowUpStatusInput,
+  ): Promise<FollowUpTask>;
+  createDrill(input: CreateDrillInput): Promise<Drill>;
+}
+
+export class FileOpsLedgerStore implements OpsLedgerStore {
   constructor(private readonly filePath: string) {}
 
   private async ensureFile() {
@@ -59,8 +86,64 @@ export class FileOpsLedgerStore {
     return this.readSnapshot();
   }
 
+  private assertOwnerExists(snapshot: BootstrapResponse, ownerId: string) {
+    if (!snapshot.owners.some((owner) => owner.id === ownerId)) {
+      throw new StoreError(`Owner not found: ${ownerId}`, 404);
+    }
+  }
+
+  private assertServiceExists(snapshot: BootstrapResponse, serviceId: string) {
+    if (!snapshot.services.some((service) => service.id === serviceId)) {
+      throw new StoreError(`Service not found: ${serviceId}`, 404);
+    }
+  }
+
+  private assertServiceIdsExist(
+    snapshot: BootstrapResponse,
+    serviceIds: string[],
+  ) {
+    for (const serviceId of serviceIds) {
+      this.assertServiceExists(snapshot, serviceId);
+    }
+  }
+
+  private assertIncidentExists(
+    snapshot: BootstrapResponse,
+    incidentId: string,
+  ) {
+    if (!snapshot.incidents.some((incident) => incident.id === incidentId)) {
+      throw new StoreError(`Incident not found: ${incidentId}`, 404);
+    }
+  }
+
+  private assertUniqueServiceSlug(snapshot: BootstrapResponse, slug: string) {
+    if (snapshot.services.some((service) => service.slug === slug)) {
+      throw new StoreError(`Service slug already exists: ${slug}`, 409);
+    }
+  }
+
+  private assertPostmortemAvailable(
+    snapshot: BootstrapResponse,
+    incidentId: string,
+  ) {
+    if (
+      snapshot.postmortems.some(
+        (postmortem) => postmortem.incidentId === incidentId,
+      )
+    ) {
+      throw new StoreError(
+        `Incident already has a postmortem: ${incidentId}`,
+        409,
+      );
+    }
+  }
+
   async createService(input: CreateServiceInput) {
     const snapshot = await this.readSnapshot();
+    this.assertUniqueServiceSlug(snapshot, input.slug);
+    this.assertOwnerExists(snapshot, input.ownerId);
+    this.assertServiceIdsExist(snapshot, input.dependencyIds);
+
     const service: Service = {
       id: createId('service'),
       ...input,
@@ -73,6 +156,8 @@ export class FileOpsLedgerStore {
 
   async createRunbook(input: CreateRunbookInput) {
     const snapshot = await this.readSnapshot();
+    this.assertServiceExists(snapshot, input.serviceId);
+
     const runbook: Runbook = {
       id: createId('runbook'),
       updatedAt: new Date().toISOString(),
@@ -87,6 +172,8 @@ export class FileOpsLedgerStore {
 
   async createIncident(input: CreateIncidentInput) {
     const snapshot = await this.readSnapshot();
+    this.assertServiceIdsExist(snapshot, input.serviceIds);
+
     const incident: Incident = {
       id: createId('incident'),
       title: input.title,
@@ -119,7 +206,7 @@ export class FileOpsLedgerStore {
     );
 
     if (!incident) {
-      throw new Error('Incident not found');
+      throw new StoreError('Incident not found', 404);
     }
 
     incident.timeline.push({
@@ -134,6 +221,9 @@ export class FileOpsLedgerStore {
 
   async createPostmortem(input: CreatePostmortemInput) {
     const snapshot = await this.readSnapshot();
+    this.assertIncidentExists(snapshot, input.incidentId);
+    this.assertPostmortemAvailable(snapshot, input.incidentId);
+
     const postmortem: Postmortem = {
       id: createId('postmortem'),
       incidentId: input.incidentId,
@@ -173,11 +263,13 @@ export class FileOpsLedgerStore {
       }
     }
 
-    throw new Error('Follow-up not found');
+    throw new StoreError('Follow-up not found', 404);
   }
 
   async createDrill(input: CreateDrillInput): Promise<Drill> {
     const snapshot = await this.readSnapshot();
+    this.assertServiceIdsExist(snapshot, input.serviceIds);
+
     const drill: Drill = {
       id: createId('drill'),
       title: input.title,

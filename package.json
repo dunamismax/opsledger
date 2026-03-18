@@ -8,7 +8,7 @@
     "build": "pnpm db:generate && pnpm build:packages && pnpm --filter @opsledger/api build && pnpm --filter @opsledger/web build",
     "build:packages": "pnpm --filter @opsledger/contracts build && pnpm --filter @opsledger/core build && pnpm --filter @opsledger/config build && pnpm --filter @opsledger/testing build && pnpm --filter @opsledger/db build",
     "db:generate": "pnpm --filter @opsledger/db prisma generate",
-    "dev": "pnpm build:packages && pnpm --parallel --filter @opsledger/api dev --filter @opsledger/web dev",
+    "dev": "pnpm build:packages && pnpm -r --parallel --filter @opsledger/api --filter @opsledger/web dev",
     "format": "biome format --write .",
     "lint": "biome check .",
     "test": "pnpm build:packages && pnpm --filter @opsledger/core test && pnpm --filter @opsledger/api test",

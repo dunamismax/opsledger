@@ -1,3 +1,4 @@
+import { parseWebEnv } from '@opsledger/config';
 import {
   type AddTimelineEntryInput,
   type BootstrapResponse,
@@ -10,7 +11,9 @@ import {
 } from '@opsledger/contracts';
 import { queryOptions } from '@tanstack/react-query';
 
-const apiBaseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
+const { VITE_API_URL: apiBaseUrl } = parseWebEnv(
+  import.meta.env as Record<string, string | undefined>,
+);
 
 async function request<T>(
   path: string,

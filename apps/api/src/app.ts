@@ -11,7 +11,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { z } from 'zod';
 
-import type { FileOpsLedgerStore } from './store.js';
+import { type OpsLedgerStore, StoreError } from './store.js';
 
 function getValidationErrorMessage(error: z.ZodError) {
   return error.issues
@@ -19,7 +19,7 @@ function getValidationErrorMessage(error: z.ZodError) {
     .join(', ');
 }
 
-export function createApp(store: FileOpsLedgerStore) {
+export function createApp(store: OpsLedgerStore) {
   const app = new Hono();
 
   app.use('/api/*', cors());
@@ -36,6 +36,32 @@ export function createApp(store: FileOpsLedgerStore) {
     return context.json(snapshot);
   });
 
+  function getStoreErrorResponse(
+    error: unknown,
+    fallback: string,
+  ): {
+    body: {
+      error: string;
+    };
+    status: 404 | 409 | 500;
+  } {
+    if (error instanceof StoreError) {
+      return {
+        status: error.statusCode,
+        body: {
+          error: error.message,
+        },
+      };
+    }
+
+    return {
+      status: 500,
+      body: {
+        error: fallback,
+      },
+    };
+  }
+
   app.post('/api/services', async (context) => {
     const input = createServiceInputSchema.safeParse(await context.req.json());
     if (!input.success) {
@@ -45,8 +71,13 @@ export function createApp(store: FileOpsLedgerStore) {
       );
     }
 
-    const service = await store.createService(input.data);
-    return context.json(service, 201);
+    try {
+      const service = await store.createService(input.data);
+      return context.json(service, 201);
+    } catch (error) {
+      const response = getStoreErrorResponse(error, 'Unable to create service');
+      return context.json(response.body, response.status);
+    }
   });
 
   app.post('/api/runbooks', async (context) => {
@@ -58,8 +89,13 @@ export function createApp(store: FileOpsLedgerStore) {
       );
     }
 
-    const runbook = await store.createRunbook(input.data);
-    return context.json(runbook, 201);
+    try {
+      const runbook = await store.createRunbook(input.data);
+      return context.json(runbook, 201);
+    } catch (error) {
+      const response = getStoreErrorResponse(error, 'Unable to create runbook');
+      return context.json(response.body, response.status);
+    }
   });
 
   app.post('/api/incidents', async (context) => {
@@ -71,8 +107,16 @@ export function createApp(store: FileOpsLedgerStore) {
       );
     }
 
-    const incident = await store.createIncident(input.data);
-    return context.json(incident, 201);
+    try {
+      const incident = await store.createIncident(input.data);
+      return context.json(incident, 201);
+    } catch (error) {
+      const response = getStoreErrorResponse(
+        error,
+        'Unable to create incident',
+      );
+      return context.json(response.body, response.status);
+    }
   });
 
   app.post('/api/incidents/:incidentId/timeline', async (context) => {
@@ -93,15 +137,11 @@ export function createApp(store: FileOpsLedgerStore) {
       );
       return context.json(incident);
     } catch (error) {
-      return context.json(
-        {
-          error:
-            error instanceof Error
-              ? error.message
-              : 'Unable to update incident',
-        },
-        404,
+      const response = getStoreErrorResponse(
+        error,
+        'Unable to update incident',
       );
+      return context.json(response.body, response.status);
     }
   });
 
@@ -116,8 +156,16 @@ export function createApp(store: FileOpsLedgerStore) {
       );
     }
 
-    const postmortem = await store.createPostmortem(input.data);
-    return context.json(postmortem, 201);
+    try {
+      const postmortem = await store.createPostmortem(input.data);
+      return context.json(postmortem, 201);
+    } catch (error) {
+      const response = getStoreErrorResponse(
+        error,
+        'Unable to create postmortem',
+      );
+      return context.json(response.body, response.status);
+    }
   });
 
   app.post('/api/follow-ups/:followUpId/status', async (context) => {
@@ -138,15 +186,11 @@ export function createApp(store: FileOpsLedgerStore) {
       );
       return context.json(task);
     } catch (error) {
-      return context.json(
-        {
-          error:
-            error instanceof Error
-              ? error.message
-              : 'Unable to update follow-up',
-        },
-        404,
+      const response = getStoreErrorResponse(
+        error,
+        'Unable to update follow-up',
       );
+      return context.json(response.body, response.status);
     }
   });
 
@@ -159,8 +203,13 @@ export function createApp(store: FileOpsLedgerStore) {
       );
     }
 
-    const drill = await store.createDrill(input.data);
-    return context.json(drill, 201);
+    try {
+      const drill = await store.createDrill(input.data);
+      return context.json(drill, 201);
+    } catch (error) {
+      const response = getStoreErrorResponse(error, 'Unable to create drill');
+      return context.json(response.body, response.status);
+    }
   });
 
   return app;

@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@opsledger/config": "workspace:*",
     "@opsledger/contracts": "workspace:*",
     "@opsledger/core": "workspace:*",
     "@tanstack/react-form": "^1.28.5",

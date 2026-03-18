@@ -68,6 +68,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@opsledger/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       '@opsledger/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
